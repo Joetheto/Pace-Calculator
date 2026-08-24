@@ -63,7 +63,7 @@ for i, seg_time in enumerate(unit_times):
         "Pace (Min/Unit)": format_time(seg_time),
         "Pace (Seconds)": seg_time,
         "Cumulative Time": format_time(cumulative_time),
-        "Effort": "⚡ Fast" if scaled_weights[i] < 0.98 else ("🐢 Slow" if scaled_weights[i] > 1.02 else "🎯 Even")
+        "Effort": "⚡ Fast" if scaled_weights[i] < 0.98 else (" Slow" if scaled_weights[i] > 1.02 else " Even")
     })
 
 df = pd.DataFrame(splits_data)
@@ -79,7 +79,7 @@ fig = px.bar(
     color="Effort",
     text="Pace (Min/Unit)",
     labels={"Pace (Seconds)": "Pace (Seconds per unit)"},
-    color_discrete_map={"⚡ Fast": "#2ecc71", "🎯 Even": "#3498db", "🐢 Slow": "#e74c3c"}
+    color_discrete_map={" Fast": "#2ecc71", " Even": "#3498db", " Slow": "#e74c3c"}
 )
 
 fig.update_traces(textposition='outside')
@@ -90,4 +90,4 @@ st.plotly_chart(fig, use_container_width=True)
 st.subheader(" Split Breakdown")
 st.dataframe(df[[f"{unit.capitalize()}", "Pace (Min/Unit)", "Cumulative Time", "Effort"]], use_container_width=True)
 
-st.success(f"✅ Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
+st.success(f"Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
