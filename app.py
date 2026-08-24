@@ -1,62 +1,93 @@
 import streamlit as st
+import plotly.express as px
+import pandas as pd
 
 st.set_page_config(page_title="Pace Calculator", layout="centered")
 
 st.title("Running Pace Calculator")
 
-unit_choice = st.radio("Distance Unit:", ["Kilometers (km)", "Miles (mi)"], horizontal=True)
-unit = "km" if "Kilometers" in unit_choice else "mi"
+# --- 1. USER INPUTS ---
+unit_choice = st.radio("Distance Unit:", ["Miles (mi)", "Kilometers (km)"], horizontal=True)
+unit = "mi" if "Miles" in unit_choice else "km"
 
 col_m, col_s = st.columns(2)
 with col_m:
-    mins = st.number_input("Goal Minutes", min_value=0, max_value=300, value=20)
+    mins = st.number_input("Goal Minutes", min_value=1, max_value=600, value=30)
 with col_s:
     secs = st.number_input("Goal Seconds", min_value=0, max_value=59, value=0)
 
-total_seconds = (mins * 60) + secs
-distance = st.number_input(f"Distance ({unit})", min_value=0.1, max_value=100.0, value=5.0, step=0.5)
+total_goal_seconds = (mins * 60) + secs
+distance = st.number_input(f"Total Distance ({unit})", min_value=1, max_value=50, value=6, step=1)
 
-split_bias = st.slider("Split Bias (-1.0 Faster End / +1.0 Faster Start)", min_value=-1.0, max_value=1.0, value=0.0, step=0.05)
-
-split_strength = split_bias / 5.0
+# Base average pace
+avg_pace_seconds = total_goal_seconds / distance
 
 def format_time(seconds):
     m, s = divmod(int(round(seconds)), 60)
     return f"{m:02d}:{s:02d}"
 
-whole_units = int(distance)
-segment_count = whole_units + (1 if distance - whole_units > 1e-9 else 0)
+st.markdown("---")
+st.subheader("Configure Mile Efforts")
+st.caption("Adjust the sliders below to make specific miles faster or slower. The app automatically scales them so your **total goal time remains exact**.")
 
-segment_distances = []
-for index in range(segment_count):
-    seg_dist = 1.0 if index < whole_units else (distance - whole_units)
-    if seg_dist > 0:
-        segment_distances.append(seg_dist)
+# --- 2. PER-UNIT PACE SLIDERS ---
+raw_weights = []
+for i in range(int(distance)):
+    # Slider default at 1.0 (average effort), range 0.5 (fast) to 1.5 (slow)
+    weight = st.slider(
+        f"{unit.capitalize()} {i+1} Effort Factor",
+        min_value=0.5,
+        max_value=1.5,
+        value=1.0,
+        step=0.05,
+        help="< 1.0 = Faster pace, > 1.0 = Slower pace",
+        key=f"weight_{i}"
+    )
+    raw_weights.append(weight)
 
-if distance > 0 and total_seconds > 0:
-    base_pace_seconds = total_seconds / distance
-    unscaled_times = []
-    for i, seg_dist in enumerate(segment_distances):
-        progress = i / max(len(segment_distances) - 1, 1)
-        factor = 1 + split_strength * (2 * progress - 1)
-        unscaled_times.append(base_pace_seconds * factor * seg_dist)
+# --- 3. EXACT TIME NORMALIZATION MATH ---
+# Scale weights so their average equals 1.0, preserving exact target time
+weight_sum = sum(raw_weights)
+scaled_weights = [w * (distance / weight_sum) for w in raw_weights]
 
-    total_unscaled = sum(unscaled_times)
-    scale = total_seconds / total_unscaled if total_unscaled > 0 else 1.0
+unit_times = [avg_pace_seconds * w for w in scaled_weights]
 
-    st.subheader("Split Breakdown")
+# --- 4. BUILD DATA & DISPLAY ---
+splits_data = []
+cumulative_time = 0.0
 
-    splits_data = []
-    cumulative = 0.0
-    for i, seg_dist in enumerate(segment_distances):
-        seg_time = unscaled_times[i] * scale
-        cumulative += seg_time
-        split_num = i + 1 if i < whole_units else f"{distance:.2f}"
-        
-        splits_data.append({
-            f"Split ({unit})": str(split_num),
-            "Cumulative Time": format_time(cumulative),
-            "Pace": f"{format_time(seg_time / seg_dist)} /{unit}"
-        })
+for i, seg_time in enumerate(unit_times):
+    cumulative_time += seg_time
+    splits_data.append({
+        f"{unit.capitalize()}": i + 1,
+        "Pace (Min/Unit)": format_time(seg_time),
+        "Pace (Seconds)": seg_time,
+        "Cumulative Time": format_time(cumulative_time),
+        "Effort": "⚡ Fast" if scaled_weights[i] < 0.98 else ("🐢 Slow" if scaled_weights[i] > 1.02 else "🎯 Even")
+    })
 
-    st.dataframe(splits_data, use_container_width=True)
+df = pd.DataFrame(splits_data)
+
+st.markdown("---")
+st.subheader(" Interactive Pace Chart")
+
+# Interactive Bar Chart
+fig = px.bar(
+    df, 
+    x=f"{unit.capitalize()}", 
+    y="Pace (Seconds)", 
+    color="Effort",
+    text="Pace (Min/Unit)",
+    labels={"Pace (Seconds)": "Pace (Seconds per unit)"},
+    color_discrete_map={"⚡ Fast": "#2ecc71", "🎯 Even": "#3498db", "🐢 Slow": "#e74c3c"}
+)
+
+fig.update_traces(textposition='outside')
+fig.update_layout(yaxis_visible=False, yaxis_showticklabels=False)
+
+st.plotly_chart(fig, use_container_width=True)
+
+st.subheader(" Split Breakdown")
+st.dataframe(df[[f"{unit.capitalize()}", "Pace (Min/Unit)", "Cumulative Time", "Effort"]], use_container_width=True)
+
+st.success(f"✅ Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
