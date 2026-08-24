@@ -118,12 +118,10 @@ mile_times = [avg_pace_seconds * w for w in scaled_weights]
 splits_data = []
 cumulative_time = 0.0
 
-# Thresholds: 4:00/mile = 240 seconds | 2:29/km = 149 seconds
 for i, seg_time_mile in enumerate(mile_times):
     cumulative_time += seg_time_mile
     seg_time_km = seg_time_mile / 1.609344
     
-    # Check if pace is faster than 4:00/mi (240s) or 2:29/km (149s)
     if seg_time_mile < 240 or seg_time_km < 149:
         effort_label = "🚨 Unrealistic Fast"
     elif scaled_weights[i] < 0.98:
@@ -163,17 +161,15 @@ fig = px.bar(
     x="Mile", 
     y="Pace Seconds", 
     color="Effort",
-    text="Min/Mile Pace",
     hover_data={"Min/Mile Pace": True, "Min/KM Pace": True, "Pace Seconds": False},
     color_discrete_map={
-        "🚨 Unrealistic Fast": "#ff0000", # Bright Red for < 4:00/mi or < 2:29/km
-        "⚡ Fast": "#2ecc71",             # Green
-        "🎯 Even": "#3498db",             # Blue
-        "🐢 Slow": "#f39c12"              # Orange/Yellow
+        "🚨 Unrealistic Fast": "#ff0000",
+        "⚡ Fast": "#2ecc71",
+        "🎯 Even": "#3498db",
+        "🐢 Slow": "#f39c12"
     }
 )
 
-fig.update_traces(textposition='outside')
 fig.update_layout(yaxis_visible=False, yaxis_showticklabels=False)
 
 st.plotly_chart(fig, use_container_width=True)
