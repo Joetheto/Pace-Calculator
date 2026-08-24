@@ -2,7 +2,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Pace Calculator", layout="centered")
 
-st.title("🏃 Running Pace Calculator")
+st.title("Running Pace Calculator")
 
 unit_choice = st.radio("Distance Unit:", ["Kilometers (km)", "Miles (mi)"], horizontal=True)
 unit = "km" if "Kilometers" in unit_choice else "mi"
@@ -44,7 +44,7 @@ if distance > 0 and total_seconds > 0:
     total_unscaled = sum(unscaled_times)
     scale = total_seconds / total_unscaled if total_unscaled > 0 else 1.0
 
-    st.subheader("📊 Split Breakdown")
+    st.subheader("Split Breakdown")
 
     splits_data = []
     cumulative = 0.0
