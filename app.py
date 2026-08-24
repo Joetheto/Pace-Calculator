@@ -50,14 +50,16 @@ if pace_mode == "Even Pace":
     raw_weights = [1.0] * int(distance_miles)
 
 elif pace_mode == "General Split (Negative / Positive)":
+    # Finer control bounds to prevent impossible splits (-0.30 to +0.30, step 0.01)
     split_bias = st.slider(
-        "Split Bias (-1.0 Faster Start / +1.0 Faster End)",
-        min_value=-1.0,
-        max_value=1.0,
-        value=0.0,
-        step=0.05,
+        "Split Bias (-0.30 Faster Start / +0.30 Faster End)",
+        min_value=-0.30,
+        max_value=0.30,
+        value=0.00,
+        step=0.01,
         help="Negative split = start faster. Positive split = finish faster."
     )
+    # Scale factor for realistic, subtle progression
     split_strength = split_bias / 5.0
     for i in range(int(distance_miles)):
         progress = i / max(distance_miles - 1, 1)
@@ -90,10 +92,10 @@ elif pace_mode == "Custom Per-Mile Override":
         with col_slider:
             st.slider(
                 f"Mile {m} Effort Factor",
-                min_value=0.5,
-                max_value=1.5,
+                min_value=0.70,
+                max_value=1.30,
                 value=st.session_state.get(f"weight_mile_{m}", 1.0),
-                step=0.05,
+                step=0.01,
                 key=f"weight_mile_{m}"
             )
         with col_del:
@@ -153,23 +155,34 @@ with table_container:
 
 st.markdown("---")
 
-# --- SECTION 4: INTERACTIVE PACE CHART ---
-st.subheader("📈 Interactive Pace Chart")
+# --- SECTION 4: INTERACTIVE LINE CHART ---
+st.subheader("📈 Interactive Pace Line Chart")
 
-fig = px.bar(
+fig = px.line(
     df, 
     x="Mile", 
-    y="Pace Seconds", 
-    color="Effort",
-    hover_data={"Min/Mile Pace": True, "Min/KM Pace": True, "Pace Seconds": False},
-    color_discrete_map={
-        "🚨 Unrealistic Fast": "#ff0000",
-        "⚡ Fast": "#2ecc71",
-        "🎯 Even": "#3498db",
-        "🐢 Slow": "#f39c12"
-    }
+    y="Pace Seconds",
+    markers=True,
+    text="Min/Mile Pace",
+    hover_data={"Min/Mile Pace": True, "Min/KM Pace": True, "Pace Seconds": False}
 )
 
-fig.update_layout(yaxis_visible=False, yaxis_showticklabels=False)
+fig.update_traces(
+    line_color='#3498db',
+    line_width=3,
+    marker=dict(size=10, color='#2980b9'),
+    textposition='top center'
+)
+
+fig.update_layout(
+    yaxis=dict(
+        autorange="reversed", 
+        title="Pace (Faster ↑ / Slower ↓)", 
+        showticklabels=False, 
+        zeroline=False
+    ),
+    xaxis=dict(dtick=1, title="Mile Number"),
+    hovermode="x unified"
+)
 
 st.plotly_chart(fig, use_container_width=True)
