@@ -36,7 +36,7 @@ table_container = st.container()
 st.markdown("---")
 
 # --- SECTION 3: PACING CONTROL OPTIONS ---
-st.subheader("🎛️ Pacing Options")
+st.subheader("Pacing Options")
 
 pace_mode = st.radio(
     "Select Pacing Strategy:",
@@ -147,7 +147,7 @@ df = pd.DataFrame(splits_data)
 
 # Render table inside top container
 with table_container:
-    st.subheader("📊 Split Breakdown")
+    st.subheader("Split Breakdown")
     st.dataframe(
         df[["Mile", "Min/Mile Pace", "Min/KM Pace", "Cumulative Time", "Effort"]], 
         use_container_width=True
