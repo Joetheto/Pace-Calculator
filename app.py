@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Pace Calculator", layout="centered")
 
-st.title("🏃 Custom Running Pace Calculator")
+st.title("Custom Running Pace Calculator")
 
 # --- 1. USER INPUTS ---
 col_m, col_s = st.columns(2)
@@ -50,7 +50,6 @@ if pace_mode == "Even Pace":
     raw_weights = [1.0] * int(distance_miles)
 
 elif pace_mode == "General Split (Negative / Positive)":
-    # Finer control bounds to prevent impossible splits (-0.30 to +0.30, step 0.01)
     split_bias = st.slider(
         "Split Bias (-0.30 Faster Start / +0.30 Faster End)",
         min_value=-0.30,
@@ -59,7 +58,6 @@ elif pace_mode == "General Split (Negative / Positive)":
         step=0.01,
         help="Negative split = start faster. Positive split = finish faster."
     )
-    # Scale factor for realistic, subtle progression
     split_strength = split_bias / 5.0
     for i in range(int(distance_miles)):
         progress = i / max(distance_miles - 1, 1)
@@ -75,7 +73,7 @@ elif pace_mode == "Custom Per-Mile Override":
     with col_add:
         if unconfigured_miles:
             selected_mile = st.selectbox("Select a mile to customize:", unconfigured_miles)
-            if st.button("➕ Add Mile Override"):
+            if st.button("Add Mile Override"):
                 st.session_state.active_sliders.append(selected_mile)
                 st.rerun()
         else:
@@ -83,7 +81,7 @@ elif pace_mode == "Custom Per-Mile Override":
 
     with col_reset:
         if st.session_state.active_sliders:
-            if st.button("🔄 Reset All Sliders"):
+            if st.button("Reset All Sliders"):
                 st.session_state.active_sliders = []
                 st.rerun()
 
@@ -119,19 +117,22 @@ mile_times = [avg_pace_seconds * w for w in scaled_weights]
 # --- 5. BUILD DATA & POPULATE TABLE ---
 splits_data = []
 cumulative_time = 0.0
+has_too_fast_mile = False
 
 for i, seg_time_mile in enumerate(mile_times):
     cumulative_time += seg_time_mile
     seg_time_km = seg_time_mile / 1.609344
     
+    # Check if pace is faster than 4:00/mi (240s) or 2:29/km (149s)
     if seg_time_mile < 240 or seg_time_km < 149:
-        effort_label = "🚨 Unrealistic Fast"
+        effort_label = "TOO FAST"
+        has_too_fast_mile = True
     elif scaled_weights[i] < 0.98:
-        effort_label = "⚡ Fast"
+        effort_label = "Fast"
     elif scaled_weights[i] > 1.02:
-        effort_label = "🐢 Slow"
+        effort_label = "Slow"
     else:
-        effort_label = "🎯 Even"
+        effort_label = "Even"
 
     splits_data.append({
         "Mile": i + 1,
@@ -151,12 +152,17 @@ with table_container:
         df[["Mile", "Min/Mile Pace", "Min/KM Pace", "Cumulative Time", "Effort"]], 
         use_container_width=True
     )
-    st.success(f"✅ Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
+    
+    # Red Highlight Warning Box if any mile is under threshold
+    if has_too_fast_mile:
+        st.error("**TOO FAST:** One or more miles fall below a realistic pace threshold (< 4:00/mi or < 2:29/km)!")
+
+    st.success(f"Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
 
 st.markdown("---")
 
 # --- SECTION 4: INTERACTIVE LINE CHART ---
-st.subheader("📈 Interactive Pace Line Chart")
+st.subheader("Interactive Pace Line Chart")
 
 fig = px.line(
     df, 
