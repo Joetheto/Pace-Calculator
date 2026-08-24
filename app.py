@@ -22,70 +22,54 @@ def format_time(seconds):
     m, s = divmod(int(round(seconds)), 60)
     return f"{m:02d}:{s:02d}"
 
-# --- 2. MANAGING OPTIONAL SLIDERS STATE ---
+# --- 2. MANAGING STATE & MODES ---
 if "active_sliders" not in st.session_state:
     st.session_state.active_sliders = []
 
-# Filter out sliders for miles beyond the current distance if user decreases distance
 st.session_state.active_sliders = [m for m in st.session_state.active_sliders if m <= distance_miles]
 
-# Build weights array (1.0 default for unconfigured miles)
-raw_weights = []
-for i in range(1, int(distance_miles) + 1):
-    key_name = f"weight_mile_{i}"
-    if i in st.session_state.active_sliders:
-        if key_name not in st.session_state:
-            st.session_state[key_name] = 1.0
-        raw_weights.append(st.session_state[key_name])
-    else:
-        raw_weights.append(1.0)
+st.markdown("---")
 
-# --- 3. EXACT TIME NORMALIZATION MATH ---
-weight_sum = sum(raw_weights)
-scaled_weights = [w * (distance_miles / weight_sum) for w in raw_weights]
-mile_times = [avg_pace_seconds * w for w in scaled_weights]
-
-# --- 4. BUILD DATA ---
-splits_data = []
-cumulative_time = 0.0
-
-for i, seg_time_mile in enumerate(mile_times):
-    cumulative_time += seg_time_mile
-    seg_time_km = seg_time_mile / 1.609344
-    
-    splits_data.append({
-        "Mile": i + 1,
-        "Min/Mile Pace": f"{format_time(seg_time_mile)} /mi",
-        "Min/KM Pace": f"{format_time(seg_time_km)} /km",
-        "Pace Seconds": seg_time_mile,
-        "Cumulative Time": format_time(cumulative_time),
-        "Effort": "⚡ Fast" if scaled_weights[i] < 0.98 else ("🐢 Slow" if scaled_weights[i] > 1.02 else "🎯 Even")
-    })
-
-df = pd.DataFrame(splits_data)
+# --- SECTION 2: SPLIT BREAKDOWN TABLE PLACEHOLDER ---
+table_container = st.container()
 
 st.markdown("---")
 
-# --- SECTION 2: SPLIT BREAKDOWN TABLE ---
-st.subheader("📊 Split Breakdown")
-st.dataframe(
-    df[["Mile", "Min/Mile Pace", "Min/KM Pace", "Cumulative Time", "Effort"]], 
-    use_container_width=True
+# --- SECTION 3: PACING CONTROL OPTIONS ---
+st.subheader("🎛️ Pacing Options")
+
+pace_mode = st.radio(
+    "Select Pacing Strategy:",
+    ["Even Pace", "General Split (Negative / Positive)", "Custom Per-Mile Override"],
+    horizontal=False
 )
 
-st.success(f"✅ Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
+raw_weights = []
 
-st.markdown("---")
+if pace_mode == "Even Pace":
+    raw_weights = [1.0] * int(distance_miles)
 
-# --- SECTION 3: OPTIONAL MILE CONFIGURATION ---
-with st.expander("🎛️ Customize Mile Efforts (Optional)", expanded=False):
-    st.caption("Add sliders one by one to adjust specific miles. Unconfigured miles will automatically balance out.")
+elif pace_mode == "General Split (Negative / Positive)":
+    split_bias = st.slider(
+        "Split Bias (-1.0 Faster Start / +1.0 Faster End)",
+        min_value=-1.0,
+        max_value=1.0,
+        value=0.0,
+        step=0.05,
+        help="Negative split = start faster. Positive split = finish faster."
+    )
+    split_strength = split_bias / 5.0
+    for i in range(int(distance_miles)):
+        progress = i / max(distance_miles - 1, 1)
+        factor = 1 + split_strength * (2 * progress - 1)
+        raw_weights.append(factor)
+
+elif pace_mode == "Custom Per-Mile Override":
+    st.caption("Add sliders one by one for specific miles. Unconfigured miles stay balanced automatically.")
     
-    # Dropdown to choose which mile to override
     unconfigured_miles = [m for m in range(1, int(distance_miles) + 1) if m not in st.session_state.active_sliders]
     
     col_add, col_reset = st.columns([2, 1])
-    
     with col_add:
         if unconfigured_miles:
             selected_mile = st.selectbox("Select a mile to customize:", unconfigured_miles)
@@ -101,7 +85,6 @@ with st.expander("🎛️ Customize Mile Efforts (Optional)", expanded=False):
                 st.session_state.active_sliders = []
                 st.rerun()
 
-    # Render only active sliders
     for m in sorted(st.session_state.active_sliders):
         col_slider, col_del = st.columns([4, 1])
         with col_slider:
@@ -111,7 +94,6 @@ with st.expander("🎛️ Customize Mile Efforts (Optional)", expanded=False):
                 max_value=1.5,
                 value=st.session_state.get(f"weight_mile_{m}", 1.0),
                 step=0.05,
-                help="< 1.0 = Faster pace, > 1.0 = Slower pace",
                 key=f"weight_mile_{m}"
             )
         with col_del:
@@ -120,6 +102,56 @@ with st.expander("🎛️ Customize Mile Efforts (Optional)", expanded=False):
             if st.button("❌", key=f"remove_{m}"):
                 st.session_state.active_sliders.remove(m)
                 st.rerun()
+
+    for i in range(1, int(distance_miles) + 1):
+        if i in st.session_state.active_sliders:
+            raw_weights.append(st.session_state.get(f"weight_mile_{i}", 1.0))
+        else:
+            raw_weights.append(1.0)
+
+# --- 4. EXACT TIME NORMALIZATION MATH ---
+weight_sum = sum(raw_weights)
+scaled_weights = [w * (distance_miles / weight_sum) for w in raw_weights]
+mile_times = [avg_pace_seconds * w for w in scaled_weights]
+
+# --- 5. BUILD DATA & POPULATE TABLE ---
+splits_data = []
+cumulative_time = 0.0
+
+# Thresholds: 4:00/mile = 240 seconds | 2:29/km = 149 seconds
+for i, seg_time_mile in enumerate(mile_times):
+    cumulative_time += seg_time_mile
+    seg_time_km = seg_time_mile / 1.609344
+    
+    # Check if pace is faster than 4:00/mi (240s) or 2:29/km (149s)
+    if seg_time_mile < 240 or seg_time_km < 149:
+        effort_label = "🚨 Unrealistic Fast"
+    elif scaled_weights[i] < 0.98:
+        effort_label = "⚡ Fast"
+    elif scaled_weights[i] > 1.02:
+        effort_label = "🐢 Slow"
+    else:
+        effort_label = "🎯 Even"
+
+    splits_data.append({
+        "Mile": i + 1,
+        "Min/Mile Pace": f"{format_time(seg_time_mile)} /mi",
+        "Min/KM Pace": f"{format_time(seg_time_km)} /km",
+        "Pace Seconds": seg_time_mile,
+        "Cumulative Time": format_time(cumulative_time),
+        "Effort": effort_label
+    })
+
+df = pd.DataFrame(splits_data)
+
+# Render table inside top container
+with table_container:
+    st.subheader("📊 Split Breakdown")
+    st.dataframe(
+        df[["Mile", "Min/Mile Pace", "Min/KM Pace", "Cumulative Time", "Effort"]], 
+        use_container_width=True
+    )
+    st.success(f"✅ Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
 
 st.markdown("---")
 
@@ -133,7 +165,12 @@ fig = px.bar(
     color="Effort",
     text="Min/Mile Pace",
     hover_data={"Min/Mile Pace": True, "Min/KM Pace": True, "Pace Seconds": False},
-    color_discrete_map={"⚡ Fast": "#2ecc71", "🎯 Even": "#3498db", "🐢 Slow": "#e74c3c"}
+    color_discrete_map={
+        "🚨 Unrealistic Fast": "#ff0000", # Bright Red for < 4:00/mi or < 2:29/km
+        "⚡ Fast": "#2ecc71",             # Green
+        "🎯 Even": "#3498db",             # Blue
+        "🐢 Slow": "#f39c12"              # Orange/Yellow
+    }
 )
 
 fig.update_traces(textposition='outside')
