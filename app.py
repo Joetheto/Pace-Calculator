@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Pace Calculator", layout="centered")
 
-st.title(" Custom Running Pace Calculator ")
+st.title("Running Pace Calculator")
 
 # --- 1. USER INPUTS ---
 col_m, col_s = st.columns(2)
@@ -23,23 +23,14 @@ def format_time(seconds):
     m, s = divmod(int(round(seconds)), 60)
     return f"{m:02d}:{s:02d}"
 
-st.markdown("---")
-st.subheader(" Configure Mile Efforts")
-st.caption("Adjust the sliders below to make specific miles faster or slower. The app automatically scales them so your **total goal time remains exact**.")
-
-# --- 2. PER-MILE PACE SLIDERS ---
+# --- 2. PER-MILE PACE SLIDERS (Read State values) ---
 raw_weights = []
 for i in range(int(distance_miles)):
-    weight = st.slider(
-        f"Mile {i+1} Effort Factor",
-        min_value=0.5,
-        max_value=1.5,
-        value=1.0,
-        step=0.05,
-        help="< 1.0 = Faster pace, > 1.0 = Slower pace",
-        key=f"weight_{i}"
-    )
-    raw_weights.append(weight)
+    key_name = f"weight_{i}"
+    # Use session state so the breakdown table can render first
+    if key_name not in st.session_state:
+        st.session_state[key_name] = 1.0
+    raw_weights.append(st.session_state[key_name])
 
 # --- 3. EXACT TIME NORMALIZATION MATH ---
 weight_sum = sum(raw_weights)
@@ -61,25 +52,42 @@ for i, seg_time_mile in enumerate(mile_times):
         "Min/KM Pace": f"{format_time(seg_time_km)} /km",
         "Pace Seconds": seg_time_mile,
         "Cumulative Time": format_time(cumulative_time),
-        "Effort": "⚡ Fast" if scaled_weights[i] < 0.98 else ("🐢 Slow" if scaled_weights[i] > 1.02 else "🎯 Even")
+        "Effort": "Fast" if scaled_weights[i] < 0.98 else ("Slow" if scaled_weights[i] > 1.02 else "Even")
     })
 
 df = pd.DataFrame(splits_data)
 
 st.markdown("---")
 
-# --- SECOND SECTION: SPLIT BREAKDOWN TABLE ---
-st.subheader("Split Breakdown")
+# --- SECTION 2: SPLIT BREAKDOWN TABLE (NOW FIRST OUTPUT) ---
+st.subheader("📊 Split Breakdown")
 st.dataframe(
     df[["Mile", "Min/Mile Pace", "Min/KM Pace", "Cumulative Time", "Effort"]], 
     use_container_width=True
 )
 
-st.success(f" Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
+st.success(f"Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
 
 st.markdown("---")
 
-# --- THIRD SECTION: INTERACTIVE PACE CHART ---
+# --- SECTION 3: CONFIGURE MILE EFFORTS (SLIDERS) ---
+st.subheader("Configure Mile Efforts")
+st.caption("Adjust the sliders below to make specific miles faster or slower. The app automatically scales them so your **total goal time remains exact**.")
+
+for i in range(int(distance_miles)):
+    st.slider(
+        f"Mile {i+1} Effort Factor",
+        min_value=0.5,
+        max_value=1.5,
+        value=st.session_state[f"weight_{i}"],
+        step=0.05,
+        help="< 1.0 = Faster pace, > 1.0 = Slower pace",
+        key=f"weight_{i}"
+    )
+
+st.markdown("---")
+
+# --- SECTION 4: INTERACTIVE PACE CHART ---
 st.subheader("Interactive Pace Chart")
 
 fig = px.bar(
