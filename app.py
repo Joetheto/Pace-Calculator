@@ -16,7 +16,7 @@ with col_s:
 total_seconds = (mins * 60) + secs
 distance = st.number_input(f"Distance ({unit})", min_value=0.1, max_value=100.0, value=5.0, step=0.5)
 
-split_bias = st.slider("Split Bias (-1.0 Faster Start / +1.0 Faster End)", min_value=-1.0, max_value=1.0, value=0.0, step=0.05)
+split_bias = st.slider("Split Bias (-1.0 Faster End / +1.0 Faster Start)", min_value=-1.0, max_value=1.0, value=0.0, step=0.05)
 
 split_strength = split_bias / 5.0
 
