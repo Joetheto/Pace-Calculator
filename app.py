@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Pace Calculator", layout="centered")
 
-st.title("Running Pace Calculator")
+st.title("🏃 Custom Running Pace Calculator")
 
 # --- 1. USER INPUTS ---
 col_m, col_s = st.columns(2)
@@ -16,26 +16,33 @@ with col_s:
 total_goal_seconds = (mins * 60) + secs
 distance_miles = st.number_input("Total Distance (Miles)", min_value=1, max_value=50, value=6, step=1)
 
-# Base average pace in seconds per mile
 avg_pace_seconds = total_goal_seconds / distance_miles
 
 def format_time(seconds):
     m, s = divmod(int(round(seconds)), 60)
     return f"{m:02d}:{s:02d}"
 
-# --- 2. PER-MILE PACE SLIDERS (Read State values) ---
+# --- 2. MANAGING OPTIONAL SLIDERS STATE ---
+if "active_sliders" not in st.session_state:
+    st.session_state.active_sliders = []
+
+# Filter out sliders for miles beyond the current distance if user decreases distance
+st.session_state.active_sliders = [m for m in st.session_state.active_sliders if m <= distance_miles]
+
+# Build weights array (1.0 default for unconfigured miles)
 raw_weights = []
-for i in range(int(distance_miles)):
-    key_name = f"weight_{i}"
-    # Use session state so the breakdown table can render first
-    if key_name not in st.session_state:
-        st.session_state[key_name] = 1.0
-    raw_weights.append(st.session_state[key_name])
+for i in range(1, int(distance_miles) + 1):
+    key_name = f"weight_mile_{i}"
+    if i in st.session_state.active_sliders:
+        if key_name not in st.session_state:
+            st.session_state[key_name] = 1.0
+        raw_weights.append(st.session_state[key_name])
+    else:
+        raw_weights.append(1.0)
 
 # --- 3. EXACT TIME NORMALIZATION MATH ---
 weight_sum = sum(raw_weights)
 scaled_weights = [w * (distance_miles / weight_sum) for w in raw_weights]
-
 mile_times = [avg_pace_seconds * w for w in scaled_weights]
 
 # --- 4. BUILD DATA ---
@@ -52,43 +59,72 @@ for i, seg_time_mile in enumerate(mile_times):
         "Min/KM Pace": f"{format_time(seg_time_km)} /km",
         "Pace Seconds": seg_time_mile,
         "Cumulative Time": format_time(cumulative_time),
-        "Effort": "Fast" if scaled_weights[i] < 0.98 else ("Slow" if scaled_weights[i] > 1.02 else "Even")
+        "Effort": "⚡ Fast" if scaled_weights[i] < 0.98 else ("🐢 Slow" if scaled_weights[i] > 1.02 else "🎯 Even")
     })
 
 df = pd.DataFrame(splits_data)
 
 st.markdown("---")
 
-# --- SECTION 2: SPLIT BREAKDOWN TABLE (NOW FIRST OUTPUT) ---
+# --- SECTION 2: SPLIT BREAKDOWN TABLE ---
 st.subheader("📊 Split Breakdown")
 st.dataframe(
     df[["Mile", "Min/Mile Pace", "Min/KM Pace", "Cumulative Time", "Effort"]], 
     use_container_width=True
 )
 
-st.success(f"Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
+st.success(f"✅ Total calculated time: **{format_time(cumulative_time)}** (Matches Goal Time Exactly)")
 
 st.markdown("---")
 
-# --- SECTION 3: CONFIGURE MILE EFFORTS (SLIDERS) ---
-st.subheader("Configure Mile Efforts")
-st.caption("Adjust the sliders below to make specific miles faster or slower. The app automatically scales them so your **total goal time remains exact**.")
+# --- SECTION 3: OPTIONAL MILE CONFIGURATION ---
+with st.expander("🎛️ Customize Mile Efforts (Optional)", expanded=False):
+    st.caption("Add sliders one by one to adjust specific miles. Unconfigured miles will automatically balance out.")
+    
+    # Dropdown to choose which mile to override
+    unconfigured_miles = [m for m in range(1, int(distance_miles) + 1) if m not in st.session_state.active_sliders]
+    
+    col_add, col_reset = st.columns([2, 1])
+    
+    with col_add:
+        if unconfigured_miles:
+            selected_mile = st.selectbox("Select a mile to customize:", unconfigured_miles)
+            if st.button("➕ Add Mile Override"):
+                st.session_state.active_sliders.append(selected_mile)
+                st.rerun()
+        else:
+            st.info("All miles currently have custom sliders.")
 
-for i in range(int(distance_miles)):
-    st.slider(
-        f"Mile {i+1} Effort Factor",
-        min_value=0.5,
-        max_value=1.5,
-        value=st.session_state[f"weight_{i}"],
-        step=0.05,
-        help="< 1.0 = Faster pace, > 1.0 = Slower pace",
-        key=f"weight_{i}"
-    )
+    with col_reset:
+        if st.session_state.active_sliders:
+            if st.button("🔄 Reset All Sliders"):
+                st.session_state.active_sliders = []
+                st.rerun()
+
+    # Render only active sliders
+    for m in sorted(st.session_state.active_sliders):
+        col_slider, col_del = st.columns([4, 1])
+        with col_slider:
+            st.slider(
+                f"Mile {m} Effort Factor",
+                min_value=0.5,
+                max_value=1.5,
+                value=st.session_state.get(f"weight_mile_{m}", 1.0),
+                step=0.05,
+                help="< 1.0 = Faster pace, > 1.0 = Slower pace",
+                key=f"weight_mile_{m}"
+            )
+        with col_del:
+            st.write("")
+            st.write("")
+            if st.button("❌", key=f"remove_{m}"):
+                st.session_state.active_sliders.remove(m)
+                st.rerun()
 
 st.markdown("---")
 
 # --- SECTION 4: INTERACTIVE PACE CHART ---
-st.subheader("Interactive Pace Chart")
+st.subheader("📈 Interactive Pace Chart")
 
 fig = px.bar(
     df, 
@@ -97,7 +133,7 @@ fig = px.bar(
     color="Effort",
     text="Min/Mile Pace",
     hover_data={"Min/Mile Pace": True, "Min/KM Pace": True, "Pace Seconds": False},
-    color_discrete_map={ "Fast": "#2ecc71", "Even": "#3498db", "Slow": "#e74c3c"}
+    color_discrete_map={"⚡ Fast": "#2ecc71", "🎯 Even": "#3498db", "🐢 Slow": "#e74c3c"}
 )
 
 fig.update_traces(textposition='outside')
