@@ -50,7 +50,7 @@ st.subheader("Pacing Options")
 
 pace_mode = st.radio(
     "Select Pacing Strategy:",
-    ["Even Pace", "General Split (Negative / Positive)", f"Custom Per-{unit_full} Override"],
+    ["Even Pace", "General Split (Positive / Negative)", f"Custom Per-{unit_full} Override"],
     horizontal=False
 )
 
@@ -59,7 +59,7 @@ raw_weights = []
 if pace_mode == "Even Pace":
     raw_weights = [1.0] * int(distance)
 
-elif pace_mode == "General Split (Negative / Positive)":
+elif pace_mode == "General Split (Positive / Negative)":
     split_bias = st.slider(
         "Split Bias (-0.30 Faster Start / +0.30 Faster End)",
         min_value=-0.30,
