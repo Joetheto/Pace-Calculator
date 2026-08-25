@@ -4,9 +4,10 @@ import os
 import time
 
 # --- CONFIGURATION ---
+# --- CONFIGURATION ---
 MODEL_NAME = "qwen2.5:14b-instruct-q4_K_M"
-OLLAMA_URL = "http://localhost:11434/api/generate"
-ITERATIONS = 35  # Number of refinement runs to execute overnight
+OLLAMA_URL = "http://100.112.43.72:11434/api/generate"
+ITERATIONS = 35
 
 MASTER_PROMPT = """
 You are an expert Python and Streamlit developer specializing in running apps and athletic tools.
