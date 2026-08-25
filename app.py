@@ -22,7 +22,7 @@ def format_time(seconds):
     m, s = divmod(int(round(seconds)), 60)
     return f"{m:02d}:{s:02d}"
 
-# --- 2. MANAGING STATE & MODES ---
+### MANAGING STATE & MODES
 if "active_sliders" not in st.session_state:
     st.session_state.active_sliders = []
 
@@ -30,12 +30,12 @@ st.session_state.active_sliders = [m for m in st.session_state.active_sliders if
 
 st.markdown("---")
 
-# --- SECTION 2: SPLIT BREAKDOWN TABLE PLACEHOLDER ---
+### SPLIT BREAKDOWN TABLE PLACEHOLDER 
 table_container = st.container()
 
 st.markdown("---")
 
-# --- SECTION 3: PACING CONTROL OPTIONS ---
+### PACING CONTROL OPTIONS 
 st.subheader("Pacing Options")
 
 pace_mode = st.radio(
@@ -109,12 +109,12 @@ elif pace_mode == "Custom Per-Mile Override":
         else:
             raw_weights.append(1.0)
 
-# --- 4. EXACT TIME NORMALIZATION MATH ---
+### TIME NORMALIZATION
 weight_sum = sum(raw_weights)
 scaled_weights = [w * (distance_miles / weight_sum) for w in raw_weights]
 mile_times = [avg_pace_seconds * w for w in scaled_weights]
 
-# --- 5. BUILD DATA & POPULATE TABLE ---
+### BUILD DATA & POPULATE TABLE
 splits_data = []
 cumulative_time = 0.0
 has_too_fast_mile = False
@@ -161,7 +161,7 @@ with table_container:
 
 st.markdown("---")
 
-# --- SECTION 4: INTERACTIVE LINE CHART ---
+### INTERACTIVE LINE CHART
 st.subheader("Interactive Pace Line Chart")
 
 fig = px.line(
